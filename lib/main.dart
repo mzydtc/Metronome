@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+// import 'package:just_audio/just_audio.dart';
 import 'package:audioplayers/audioplayers.dart';
 
 void main() {
@@ -25,7 +26,8 @@ class MetronomeScreen extends StatefulWidget {
 }
 
 class _MetronomeScreenState extends State<MetronomeScreen> {
-  final AudioPlayer player = AudioPlayer();
+  late AudioPlayer player;
+
   bool isPlaying = false;
   late Timer timer;
   List<bool> beatStates = [false, false, false, false]; // 每小节拍子的闪烁状态
@@ -46,6 +48,8 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
     ('平均8分', [0.5, 0.5], [true, true]),
     ('三连音', [0.33333, 0.33333, 0.33334], [true, true, true]),
     ('平均16分', [0.25, 0.25, 0.25, 0.25], [true, true, true, true]),
+    ('前8后16', [0.5, 0.25, 0.25], [true, true, true]),
+    ('前16后8', [0.25, 0.25, 0.5], [true, true, true]),
   ];
 
   void startStop() {
@@ -54,8 +58,16 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
         timer.cancel();
         beatStates = List.filled(beatStates.length, false); // 停止时重置所有拍子的闪烁状态
       } else {
+        print("start");
         beatStates = List.filled(beatsPerMeasure, false); // 根据每小节的拍数初始化拍子的闪烁状态
         currentBeat = 0;
+        player = AudioPlayer();
+        player.setSource(AssetSource('tick.mp3'));
+        player.setPlayerMode(PlayerMode.lowLatency);
+        for (int i = 0; i < 10; i++) {
+          player.resume();
+        }
+        print("finish load player");
         playBeats();
       }
       isPlaying = !isPlaying;
@@ -74,12 +86,23 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
     });
   }
 
-  void palyNote((String, List<double>, List<bool>) beat, int index) {
+  palyNote((String, List<double>, List<bool>) beat, int index) async {
     if (index >= beat.$2.length) {
       return;
     }
+    // if (beat.$3[index]) {
+    //   player.setUrl('asset://tick.mp3');
+    //   if (index == 0) {
+    //     player.setVolume(0.5);
+    //   } else {
+    //     player.setVolume(1);
+    //   }
+    //   player.play();
+    // }
     if (beat.$3[index]) {
-      player.play(AssetSource('tick.mp3'), mode: PlayerMode.lowLatency);
+      // player.setVolume(index == 0 ? 1.0 : 0.8);
+      player.stop();
+      player.resume();
     }
     Timer(Duration(milliseconds: (beat.$2[index] * (60000 / bpm)).toInt()), () {
       palyNote(beat, index + 1);
