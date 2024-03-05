@@ -29,7 +29,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
   late AudioPlayer player;
 
   bool isPlaying = false;
-  late Timer timer;
+  Timer timer = Timer(Duration.zero, () {});
   List<bool> beatStates = [false, false, false, false]; // 每小节拍子的闪烁状态
   int currentBeat = 0; // 当前到第几拍
 
@@ -52,44 +52,53 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
     ('前16后8', [0.25, 0.25, 0.5], [true, true, true]),
   ];
 
-  void startStop() {
-    setState(() {
-      if (isPlaying) {
-        timer.cancel();
+  startStop() async {
+    if (isPlaying) {
+      isPlaying = false;
+      timer.cancel();
+      setState(() {
         beatStates = List.filled(beatStates.length, false); // 停止时重置所有拍子的闪烁状态
-      } else {
-        print("start");
+      });
+    } else {
+      isPlaying = true;
+      print("aaa: start");
+      setState(() {
         beatStates = List.filled(beatsPerMeasure, false); // 根据每小节的拍数初始化拍子的闪烁状态
-        currentBeat = 0;
-        player = AudioPlayer();
-        player.setSource(AssetSource('tick.mp3'));
-        player.setPlayerMode(PlayerMode.lowLatency);
-        for (int i = 0; i < 10; i++) {
-          player.resume();
-        }
-        print("finish load player");
-        playBeats();
-      }
-      isPlaying = !isPlaying;
-    });
-  }
-
-  void playBeats() {
-    beatStates[currentBeat] = true;
-    (String, List<double>, List<bool>) beat = beats[currentBeat];
-    palyNote(beat, 0);
-
-    beatStates[currentBeat] = false;
-    currentBeat = (currentBeat + 1) % beats.length;
-    timer = Timer(Duration(milliseconds: ((60000 / bpm)).round()), () {
+      });
+      currentBeat = 0;
+      player = await initPlayer();
+      print("aaa: init player");
       playBeats();
+    }
+    print("aaa: start finish");
+  }
+
+  playBeats() {
+    print("aaa: play beats, isPlaying" + isPlaying.toString());
+    if (!isPlaying) {
+      return;
+    }
+    setState(() {
+      beatStates[currentBeat] = true;
+    });
+    (String, List<double>, List<bool>) beat = beats[currentBeat];
+    playNote(beat, 0).then((value) => null);
+
+    setState(() {
+      beatStates[currentBeat] = false;
+    });
+    currentBeat = (currentBeat + 1) % beats.length;
+    timer = Timer(Duration(milliseconds: ((60000 / bpm)).round()), () async {
+      await playBeats();
     });
   }
 
-  palyNote((String, List<double>, List<bool>) beat, int index) async {
+  Future<void> playNote(
+      (String, List<double>, List<bool>) beat, int index) async {
     if (index >= beat.$2.length) {
       return;
     }
+    print("aaa: play note");
     // if (beat.$3[index]) {
     //   player.setUrl('asset://tick.mp3');
     //   if (index == 0) {
@@ -100,13 +109,29 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
     //   player.play();
     // }
     if (beat.$3[index]) {
+      print("aaa: tick");
+      // player = await initPlayer();
       // player.setVolume(index == 0 ? 1.0 : 0.8);
-      player.stop();
-      player.resume();
+      // await player.stop();
+      // await player.resume();
+      final player = AudioPlayer();
+      player.play(AssetSource('tick.mp3'), volume: index == 0 ? 1.0 : 0.8);
     }
-    Timer(Duration(milliseconds: (beat.$2[index] * (60000 / bpm)).toInt()), () {
-      palyNote(beat, index + 1);
+    Timer(Duration(milliseconds: (beat.$2[index] * (60000 / bpm)).toInt()),
+        () async {
+      await playNote(beat, index + 1);
     });
+  }
+
+  Future<AudioPlayer> initPlayer() async {
+    final player = AudioPlayer();
+
+    await Future.wait([
+      player.setPlayerMode(PlayerMode.lowLatency),
+      player.setSourceAsset('tick.mp3')
+    ]);
+
+    return player;
   }
 
   void increaseBpm() {
@@ -244,7 +269,9 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
                 ),
                 SizedBox(width: 20.0),
                 ElevatedButton(
-                  onPressed: startStop,
+                  onPressed: () async {
+                    await startStop();
+                  },
                   child: isPlaying ? Icon(Icons.stop) : Icon(Icons.play_arrow),
                 ),
                 SizedBox(width: 20.0),
