@@ -26,7 +26,14 @@ class MetronomeScreen extends StatefulWidget {
 }
 
 class _MetronomeScreenState extends State<MetronomeScreen> {
-  late AudioPlayer player;
+  AudioPlayer player = AudioPlayer();
+
+  late List<AudioPlayer> players;
+  int currentPlayer = 0;
+  // AudioPlayer player = AudioPlayer(
+  //     audioLoadConfiguration: const AudioLoadConfiguration(
+  //         androidLoadControl:
+  //             AndroidLoadControl(targetBufferBytes: 1024 * 1024)));
 
   bool isPlaying = false;
   Timer timer = Timer(Duration.zero, () {});
@@ -61,26 +68,22 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
       });
     } else {
       isPlaying = true;
-      print("aaa: start");
       setState(() {
         beatStates = List.filled(beatsPerMeasure, false); // 根据每小节的拍数初始化拍子的闪烁状态
       });
       currentBeat = 0;
-      player = await initPlayer();
-      print("aaa: init player");
+      await initPlayer();
       await playBeats();
     }
-    print("aaa: start finish");
   }
 
   Future<void> playBeats() async {
-    print("aaa: play beats, isPlaying" + isPlaying.toString());
     if (!isPlaying) {
       return;
     }
 
     (String, List<double>, List<bool>) beat = beats[currentBeat];
-    playNote(beat, 0);
+    await playNote(beat, 0);
 
     setState(() {
       beatStates = List.filled(beatsPerMeasure, false);
@@ -91,66 +94,106 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
 
   Future<void> playNote(
       (String, List<double>, List<bool>) beat, int index) async {
-    timer =
-        Timer(Duration(milliseconds: (beat.$2[index] * (60000 / bpm)).toInt()),
-            () async {
-      if (index == beat.$2.length - 1) {
-        playBeats();
-      } else {
-        playNote(beat, index + 1);
-      }
-    });
-    print("aaa: play note, index: " +
-        index.toString() +
-        ", " +
-        DateTime.now().millisecondsSinceEpoch.toString());
+    if (index == beat.$2.length - 1) {
+      timer = Timer(
+          Duration(milliseconds: (beat.$2[index] * (60000 / bpm)).toInt() - 1),
+          () async {
+        await playBeats();
+      });
+    } else {
+      timer = Timer(
+          Duration(milliseconds: (beat.$2[index] * (60000 / bpm)).toInt()),
+          () async {
+        await playNote(beat, index + 1);
+      });
+    }
+    ;
 
     if (beat.$3[index]) {
-      print("aaa: tick");
-      var start = DateTime.now().millisecondsSinceEpoch;
       // await player.stop();
       // print("aaa: player stop cost: " +
       // (DateTime.now().millisecondsSinceEpoch - start).toString());
       // player.resume();
-      var volume = index == 0 ? 1.0 : 0.7;
-      // await player.setVolume(volume);
-      // print("aaa: volume: " + volume.toString());
-      player.play(AssetSource('tick.wav'), volume: volume);
+      var volume = index == 0 ? 1.0 : 0.3;
 
-      // await player.setUrl('asset://tick.wav');
-      // if (index == 0) {
-      //   await player.setVolume(0.5);
-      // } else {
-      //   await player.setVolume(1);
-      // }
-      // await player.play();
-
-      Future.delayed(const Duration(milliseconds: 150), () {
-        player.stop();
-      });
+      playSound(volume);
     }
   }
 
-  Future<AudioPlayer> initPlayer() async {
-    AudioPlayer player = AudioPlayer();
-
-    await Future.wait([
-      player.setPlayerMode(PlayerMode.lowLatency),
-      player.setSourceAsset('tick.wav')
-    ]);
-
-    return player;
+  Future<void> initPlayer() async {
+    AudioPlayer.global.setAudioContext(
+      const AudioContext(
+        android: AudioContextAndroid(
+          audioMode: AndroidAudioMode.normal,
+          stayAwake: false,
+          contentType: AndroidContentType.sonification,
+          usageType: AndroidUsageType.notification,
+          audioFocus: AndroidAudioFocus.none,
+        ),
+      ),
+    );
+    List<AudioPlayer> l = [];
+    for (int i = 0; i < 16; i++) {
+      AudioPlayer p = AudioPlayer();
+      // await p.setPlayerMode(PlayerMode.lowLatency);
+      await p.setSourceAsset('tick.wav');
+      l.add(p);
+      players = l;
+    }
   }
+
+  Future<void> resetPlayer(AudioPlayer p) async {
+    // await p.setPlayerMode(PlayerMode.lowLatency);
+    await p.setSourceAsset('tick.wav');
+  }
+
+  Future<void> playSound(double volume) async {
+    // await player.setVolume(volume);
+
+    var dateTime = DateTime.now();
+    var start = dateTime.millisecondsSinceEpoch;
+
+    print(
+        "aaa: start play at ${dateTime.hour}:${dateTime.minute}:${dateTime.second}.${dateTime.millisecond}");
+
+    var player = players[currentPlayer];
+    currentPlayer = (currentPlayer + 1) % players.length;
+    player
+        .resume()
+        .then((value) => print(
+            "aaa: finish play cost: ${DateTime.now().millisecondsSinceEpoch - start}"))
+        .then((_) async {
+      // await player.stop();
+      // await resetPlayer(player);
+      // player.setSourceBytes(bytes)
+    }).then((_) {
+      var dateTime = DateTime.now();
+      print(
+          "aaa: finish stop at ${dateTime.hour}:${dateTime.minute}:${dateTime.second}.${dateTime.millisecond}");
+      print("aaa: total cost: ${dateTime.millisecondsSinceEpoch - start}");
+    });
+  }
+
+  // Future<void> initPlayer() async {
+  //   await player.setAsset(// Load a URL
+  //       'tick');
+  //   await player.setAllowsExternalPlayback(true);
+  // }
+
+  // Future<void> playSound(double volume) async {
+  //   await player.setVolume(volume);
+  //   await player.play();
+  // }
 
   void increaseBpm() {
     setState(() {
-      bpm += 5;
+      bpm += 10;
     });
   }
 
   void decreaseBpm() {
     setState(() {
-      bpm -= 5;
+      bpm -= 10;
       if (bpm < 1) {
         bpm = 1;
       }

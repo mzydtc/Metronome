@@ -97,3 +97,4 @@ flutter:
   assets:
     - assets/tick.wav
     - assets/tick2.wav
+    - assets/tick
