@@ -95,4 +95,5 @@ flutter:
       fonts:
         - asset: fonts/Akvo.ttf
   assets:
-    - assets/tick.mp3
+    - assets/tick.wav
+    - assets/tick2.wav

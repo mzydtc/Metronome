@@ -68,67 +68,75 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
       currentBeat = 0;
       player = await initPlayer();
       print("aaa: init player");
-      playBeats();
+      await playBeats();
     }
     print("aaa: start finish");
   }
 
-  playBeats() {
+  Future<void> playBeats() async {
     print("aaa: play beats, isPlaying" + isPlaying.toString());
     if (!isPlaying) {
       return;
     }
-    setState(() {
-      beatStates[currentBeat] = true;
-    });
+
     (String, List<double>, List<bool>) beat = beats[currentBeat];
-    playNote(beat, 0).then((value) => null);
+    playNote(beat, 0);
 
     setState(() {
-      beatStates[currentBeat] = false;
+      beatStates = List.filled(beatsPerMeasure, false);
+      beatStates[currentBeat] = true;
     });
     currentBeat = (currentBeat + 1) % beats.length;
-    timer = Timer(Duration(milliseconds: ((60000 / bpm)).round()), () async {
-      await playBeats();
-    });
   }
 
   Future<void> playNote(
       (String, List<double>, List<bool>) beat, int index) async {
-    if (index >= beat.$2.length) {
-      return;
-    }
-    print("aaa: play note");
-    // if (beat.$3[index]) {
-    //   player.setUrl('asset://tick.mp3');
-    //   if (index == 0) {
-    //     player.setVolume(0.5);
-    //   } else {
-    //     player.setVolume(1);
-    //   }
-    //   player.play();
-    // }
+    timer =
+        Timer(Duration(milliseconds: (beat.$2[index] * (60000 / bpm)).toInt()),
+            () async {
+      if (index == beat.$2.length - 1) {
+        playBeats();
+      } else {
+        playNote(beat, index + 1);
+      }
+    });
+    print("aaa: play note, index: " +
+        index.toString() +
+        ", " +
+        DateTime.now().millisecondsSinceEpoch.toString());
+
     if (beat.$3[index]) {
       print("aaa: tick");
-      // player = await initPlayer();
-      // player.setVolume(index == 0 ? 1.0 : 0.8);
+      var start = DateTime.now().millisecondsSinceEpoch;
       // await player.stop();
-      // await player.resume();
-      final player = AudioPlayer();
-      player.play(AssetSource('tick.mp3'), volume: index == 0 ? 1.0 : 0.8);
+      // print("aaa: player stop cost: " +
+      // (DateTime.now().millisecondsSinceEpoch - start).toString());
+      // player.resume();
+      var volume = index == 0 ? 1.0 : 0.7;
+      // await player.setVolume(volume);
+      // print("aaa: volume: " + volume.toString());
+      player.play(AssetSource('tick.wav'), volume: volume);
+
+      // await player.setUrl('asset://tick.wav');
+      // if (index == 0) {
+      //   await player.setVolume(0.5);
+      // } else {
+      //   await player.setVolume(1);
+      // }
+      // await player.play();
+
+      Future.delayed(const Duration(milliseconds: 150), () {
+        player.stop();
+      });
     }
-    Timer(Duration(milliseconds: (beat.$2[index] * (60000 / bpm)).toInt()),
-        () async {
-      await playNote(beat, index + 1);
-    });
   }
 
   Future<AudioPlayer> initPlayer() async {
-    final player = AudioPlayer();
+    AudioPlayer player = AudioPlayer();
 
     await Future.wait([
       player.setPlayerMode(PlayerMode.lowLatency),
-      player.setSourceAsset('tick.mp3')
+      player.setSourceAsset('tick.wav')
     ]);
 
     return player;
@@ -166,16 +174,16 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: <Widget>[
-            Container(
-              height: 100,
-              child: CustomPaint(
-                painter: StaffPainter(
-                  beatStates: beatStates,
-                  beatsPerMeasure: beatsPerMeasure,
-                  noteValue: noteValue,
-                ),
-              ),
-            ),
+            // Container(
+            //   height: 100,
+            //   child: CustomPaint(
+            //     painter: StaffPainter(
+            //       beatStates: beatStates,
+            //       beatsPerMeasure: beatsPerMeasure,
+            //       noteValue: noteValue,
+            //     ),
+            //   ),
+            // ),
             SizedBox(height: 20.0),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -203,7 +211,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
                       height: 20,
                       margin: EdgeInsets.all(5),
                       decoration: BoxDecoration(
-                        color: state ? Colors.blue : Colors.grey,
+                        color: state ? Colors.lightBlue : Colors.grey,
                         shape: BoxShape.circle,
                       ),
                     ));
@@ -386,7 +394,9 @@ class _EditRhythmDialogState extends State<EditRhythmDialog> {
               },
               child: Container(
                 decoration: BoxDecoration(
-                  color: isSelected ? Colors.blue : Colors.grey,
+                  color: isSelected
+                      ? const Color.fromARGB(255, 211, 231, 240)
+                      : const Color.fromARGB(26, 236, 233, 233),
                   borderRadius: BorderRadius.circular(5.0),
                 ),
                 alignment: Alignment.center,
